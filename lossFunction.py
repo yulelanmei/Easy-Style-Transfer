@@ -13,12 +13,22 @@ class GramMatrix(nn.Module):
 class Decoder_Train_Loss(nn.Module):
     def __init__(self):
         super(Decoder_Train_Loss, self).__init__()
-        self.Loss = nn.MSELoss()
-    def forward(self, dlist: list, elist: list):
-        loss = self.Loss(dlist[0], elist[0])
+        from mssim import MSSSIM
+        self.l2Loss = nn.MSELoss()
+        self.mssim  = MSSSIM()
+
+    def forward(self, dlist: list, elist: list, weighted= False):
+        loss = self.calc_loss(dlist[0], elist[0], weighted)
         for i in range(1, 5): 
-            loss = loss + self.Loss(dlist[i], elist[i])
+            loss = loss + self.calc_loss(dlist[i], elist[i], weighted)
         return loss
+    
+    def calc_loss(self, input, target, weighted): 
+        loss = self.l2Loss(input, target)
+        if weighted: 
+            weight = self.mssim(input, target)
+            loss = loss * (1 - weight) / (weight + 1e-8)
+        return loss 
 
 class Gram_Style_Loss(nn.Module): 
     def __init__(self):
