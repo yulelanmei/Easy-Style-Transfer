@@ -12,7 +12,7 @@ def pilimg2tensor(pilimg, cuda= False, mean= None, std= None):
     tensor = ToTensor()(pilimg)
     if (mean is not None) and (std is not None): 
         tensor = Normalize(mean, std, inplace= True)(tensor)
-    return tensor.cuda() if cuda else tensor
+    return tensor.unsqueeze(0).cuda() if cuda else tensor
 
 def tensor2img(tensor, std= None, mean= None):
     img = tensor.cpu().detach().numpy().squeeze()

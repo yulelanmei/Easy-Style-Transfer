@@ -18,16 +18,20 @@ class Decoder_Train_Loss(nn.Module):
         self.mssim  = MSSSIM()
 
     def forward(self, dlist: list, elist: list, weighted= False):
-        loss = self.calc_loss(dlist[0], elist[0], weighted)
+        loss = self.img_similarity(dlist[0], elist[0], weighted)
         for i in range(1, 5): 
-            loss = loss + self.calc_loss(dlist[i], elist[i], weighted)
+            loss = loss + self.tensor_similarity(dlist[i], elist[i])
         return loss
     
-    def calc_loss(self, input, target, weighted): 
+    def img_similarity(self, input, target, weighted): 
         loss = self.l2Loss(input, target)
         if weighted: 
             weight = self.mssim(input, target)
-            loss = loss * (1 - weight) / (weight + 1e-8)
+            loss = loss / (weight + 1e-8)
+        return loss 
+
+    def tensor_similarity(self, input, target): 
+        loss = self.l2Loss(input, target)
         return loss 
 
 class Gram_Style_Loss(nn.Module): 

@@ -9,7 +9,7 @@ network_config = {
     ), 
     'num_of_layer': 5, 
     'vgg_path': r"./pretrained_models\vgg19-dcbb9e9d.pth", 
-    'decoder_path': r"./pretrained_models\decoder0.2.pth"
+    'decoder_path': r"./pretrained_models\decoder1.4.pth"
 }
 
 style_config = [

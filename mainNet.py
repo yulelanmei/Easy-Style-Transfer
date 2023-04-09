@@ -32,20 +32,23 @@ def get_vgg19(vgg_config: tuple, num_of_layers, vgg):
     ]).requires_grad_(False)
 
 class Decoder_Train_Net(nn.Module): 
-    def __init__(self, get_layer_output= False):
+    def __init__(self, get_layer_output= False, init= False):
         super(Decoder_Train_Net, self).__init__()
         vgg = model.vgg19()
         vgg.load_state_dict(th.load(cfg.network_config['vgg_path']))
         self.encoder = get_vgg19(cfg.network_config['vgg_layer'], cfg.network_config['num_of_layer'], vgg.features)
         self.decoder = get_vgg19_decoder(cfg.network_config['decoder'], cfg.network_config['num_of_layer'])
         
+        if init:
+            for m in self.children():
+                if isinstance(m, nn.Conv2d):
+                    nn.init.kaiming_normal_(m.weight, mode= 'fan_out', nonlinearity= 'relu')
+
         self.get_layer_output = get_layer_output
         if self.get_layer_output:                      
             self.elist = []
             self.dlist = []    
     def forward(self, x): 
-        x = x.requires_grad_(True)
-
         if self.get_layer_output:
             self.elist.clear()
             self.dlist.clear()
@@ -61,7 +64,7 @@ class Decoder_Train_Net(nn.Module):
                 self.dlist.append(x)
 
         if self.get_layer_output:        
-            self.elist.reverse()
+            self.dlist.reverse()
         return x
 
 class VGG_Encoder(nn.Module): 
