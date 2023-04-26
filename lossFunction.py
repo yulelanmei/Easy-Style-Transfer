@@ -14,24 +14,24 @@ class Decoder_Train_Loss(nn.Module):
     def __init__(self):
         super(Decoder_Train_Loss, self).__init__()
         from mssim import MSSSIM
-        self.l2Loss = nn.MSELoss()
+        self.absolute_Loss = nn.MSELoss()
         self.mssim  = MSSSIM()
 
-    def forward(self, dlist: list, elist: list, weighted= False):
-        loss = self.img_similarity(dlist[0], elist[0], weighted)
-        for i in range(1, 5): 
-            loss = loss + self.tensor_similarity(dlist[i], elist[i])
+    def forward(self, input, target, use_imgSml= False):
+        if use_imgSml:
+            loss = self.img_similarity(input, target)
+        else:
+            loss = self.tensor_similarity(input, target)
         return loss
     
-    def img_similarity(self, input, target, weighted): 
-        loss = self.l2Loss(input, target)
-        if weighted: 
-            weight = self.mssim(input, target)
-            loss = loss / (weight + 1e-8)
+    def img_similarity(self, input, target): 
+        loss = self.absolute_Loss(input, target)
+        weight = self.mssim(input, target)
+        loss = loss / (weight + 1e-8)
         return loss 
 
     def tensor_similarity(self, input, target): 
-        loss = self.l2Loss(input, target)
+        loss = self.absolute_Loss(input, target)
         return loss 
 
 class Gram_Style_Loss(nn.Module): 
