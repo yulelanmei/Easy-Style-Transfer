@@ -165,6 +165,7 @@ class LossUnit(nn.Module):
             loss = loss + lossList[i](input)
         return loss 
     
+# Abandoned
 class StyleTransferLoss(nn.Module):
     def __init__(self, loss_cfg: list): 
         super(StyleTransferLoss, self).__init__()

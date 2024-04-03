@@ -4,6 +4,7 @@ import torchvision.models as model
 import networks as net
 import config as cfg
 
+# ---------------   VGG19   ----------------
 def get_decode_block(in_channels, out_channels, num_of_layer, if_scaled = True): 
     block = nn.Sequential(nn.ReflectionPad2d((1, 1, 1, 1)), 
                           nn.Conv2d(in_channels, out_channels, (3, 3)),
@@ -96,7 +97,7 @@ class Decoder_Train_Net(nn.Module):
 
 class Decoder_Train_Net(nn.Module):
     def __init__(self) -> None:
-        super(Decoder_Train_Net, self).__ini
+        super(Decoder_Train_Net, self).__init__()
         vgg = model.vgg19()
         vgg.load_state_dict(th.load(cfg.network_config['vgg_path']))
         self.encoder = get_vgg19(cfg.network_config['vgg_layer'], cfg.network_config['num_of_layer'], vgg.features)
@@ -159,5 +160,29 @@ class Style_Trans_Train(nn.Module):
         x, self.dlist  = self.decoder(x, self.eclist, self.eslist)
         return x
 
+# ------------- MobileNetv2 -----------------
+class ConvNormActivation(nn.Module):
+    def __init__(self, in_channals, out_channals, kernel_size=(3, 3), stride= (1, 1), bias= True):
+        super(ConvNormActivation, self).__init__()
+        
+
+class BottleNeck(nn.Module):
+    def __init__(self):
+        super(BottleNeck, self).__init__()
+    
+
+
+def get_mobv2_decoder():
+    
+    
+    pass
+
+
+# class 
+
+
 if __name__ == '__main__':
-    print(Decoder_Train_Net())
+    # print(Decoder_Train_Net())
+    mobv2 = model.mobilenet_v2(pretrained= True)
+    # mobv2.load_state_dict(th.load(r'BoneNetwork_models\mobilenetv2-c5e733a8.pth'))
+    print(mobv2)
