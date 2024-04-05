@@ -161,28 +161,83 @@ class Style_Trans_Train(nn.Module):
         return x
 
 # ------------- MobileNetv2 -----------------
-class ConvNormActivation(nn.Module):
-    def __init__(self, in_channals, out_channals, kernel_size=(3, 3), stride= (1, 1), bias= True):
-        super(ConvNormActivation, self).__init__()
+# refrence from https://gitee.com/xuyangyan/mobilenetv2.pytorch/blob/master/models/imagenet/mobilenetv2.py
+
+def get_ConvNormActivation(in_channals, out_channals, kernel_size= 3, 
+                        stride= 1, padding= 1, groups= 1, bias= True):
+    return nn.Sequential(nn.Conv2d(in_channals, out_channals, kernel_size, stride, padding, 
+                                   groups= groups, bias= bias),
+                         nn.BatchNorm2d(out_channals),
+                         nn.ReLU6(inplace= True))
+
+def get_TransposeConvNormActivation(in_channals, out_channals, kernel_size= 3, 
+                                stride= 1, padding= 1, groups= 1, bias= True):
+    return nn.Sequential(nn.ConvTranspose2d(in_channals, out_channals, kernel_size, stride, padding,
+                                            groups= groups, bias= bias),
+                         nn.BatchNorm2d(out_channals),
+                         nn.ReLU6(inplace= True))
+
+class InverteResidual(nn.Module):
+    def __init__(self, in_channals, out_channals, stride, expand_ratio):
+        super(InverteResidual, self).__init__()
+        assert stride in (1, 2)
         
+        # 计算隐藏维度时舍入整数
+        hidden_dim = round(in_channals * expand_ratio)
+        # 是否残差连接
+        self.identity = stride == 1 and in_channals == out_channals
 
-class BottleNeck(nn.Module):
+        if expand_ratio == 1:
+            self.conv = nn.Sequential(
+                # dw
+                *get_ConvNormActivation(hidden_dim, hidden_dim, 3, stride, 
+                                        1, groups= hidden_dim, bias= False),
+                # pw-linear
+                nn.Conv2d(hidden_dim, out_channals, 1, 1, 0, bias=False),
+                nn.BatchNorm2d(out_channals),
+            )
+        else:
+            self.conv = nn.Sequential(
+                # pw
+                *get_ConvNormActivation(in_channals, hidden_dim, 1, 1, 0, bias= False),
+                # dw
+                *get_ConvNormActivation(hidden_dim, hidden_dim, 3, stride, 1, groups= hidden_dim, bias= False),
+                # pw-linear
+                nn.Conv2d(hidden_dim, out_channals, 1, 1, 0, bias=False),
+                nn.BatchNorm2d(out_channals),
+            )
+
+    def forward(self, x):
+        if self.identity:
+            return x + self.conv(x)
+        else:
+            return self.conv(x)
+        
+class MobileNetV2_Encoder(nn.Module):
     def __init__(self):
-        super(BottleNeck, self).__init__()
-    
-
-
-def get_mobv2_decoder():
-    
-    
-    pass
-
-
-# class 
-
+        super(MobileNetV2_Encoder, self).__init__()
+        
+        layers = [get_ConvNormActivation(3, 32, kernel_size= 3, stride= 2, bias= False)]
+        block = InverteResidual
+        in_channals = 32
+        for t, c, n, s in cfg.mobv2_encoder_cfg:
+            out_channals = c
+            for i in range(n):
+                layers.append(block(in_channals, out_channals, s if i == 0 else 1, t))
+                in_channals = out_channals
+        self.features = nn.Sequential(*layers)
+        
+    def forward(self, x):
+        x = self.features(x)
+        return x
+        
+class MobileNetV2_Decoder(nn.Module):
+    def __init__(self):
+        super(MobileNetV2_Decoder, self).__init__()
 
 if __name__ == '__main__':
     # print(Decoder_Train_Net())
-    mobv2 = model.mobilenet_v2(pretrained= True)
-    # mobv2.load_state_dict(th.load(r'BoneNetwork_models\mobilenetv2-c5e733a8.pth'))
+    # mobv2 = model.mobilenet_v2(pretrained= True)
+    mobv2 = MobileNetV2_Encoder()
+    mobv2.load_state_dict(th.load(r'BoneNetwork_models\mobilenetv2-c5e733a8.pth'), strict= False)
     print(mobv2)
