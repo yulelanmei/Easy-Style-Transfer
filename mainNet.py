@@ -170,9 +170,13 @@ def get_ConvNormActivation(in_channals, out_channals, kernel_size= 3,
                          nn.BatchNorm2d(out_channals),
                          nn.ReLU6(inplace= True))
 
-def get_TransposeConvNormActivation(in_channals, out_channals, kernel_size= 3, 
+def get_TransposedConvNormActivation(in_channals, out_channals, kernel_size= 3, 
                                 stride= 1, padding= 1, groups= 1, bias= True):
-    return nn.Sequential(nn.ConvTranspose2d(in_channals, out_channals, kernel_size, stride, padding,
+    assert stride in (1, 2)
+    output_padding = 1 if stride == 2 else 0
+    return nn.Sequential(
+                         nn.ConvTranspose2d(in_channals, out_channals, kernel_size, stride, 
+                                            padding= padding, output_padding= output_padding,
                                             groups= groups, bias= bias),
                          nn.BatchNorm2d(out_channals),
                          nn.ReLU6(inplace= True))
@@ -213,6 +217,40 @@ class InverteResidual(nn.Module):
         else:
             return self.conv(x)
         
+class De_InverteResidual(nn.Module):
+    def __init__(self, in_channals, out_channals, stride, expand_ratio):
+        super(De_InverteResidual, self).__init__()
+        assert stride in (1, 2)
+        
+        hidden_dim = round(out_channals * expand_ratio)
+        self.identity = stride == 1 and in_channals == out_channals
+        
+        if expand_ratio == 1:
+            self.conv = nn.Sequential(
+                # dw
+                *get_TransposedConvNormActivation(hidden_dim, hidden_dim, 3, stride, 
+                                        1, groups= hidden_dim, bias= False),
+                # pw-linear
+                nn.Conv2d(hidden_dim, out_channals, 1, 1, 0, bias=False),
+                nn.BatchNorm2d(out_channals),
+            )
+        else:
+            self.conv = nn.Sequential(
+                # pw
+                *get_TransposedConvNormActivation(in_channals, hidden_dim, 1, 1, 0, bias= False),
+                # dw
+                *get_TransposedConvNormActivation(hidden_dim, hidden_dim, 3, stride, 1, groups= hidden_dim, bias= False),
+                # pw-linear
+                nn.Conv2d(hidden_dim, out_channals, 1, 1, 0, bias=False),
+                nn.BatchNorm2d(out_channals),
+            )
+        
+    def forward(self, x):
+        if self.identity:
+            return x + self.conv(x)
+        else:
+            return self.conv(x)
+        
 class MobileNetV2_Encoder(nn.Module):
     def __init__(self):
         super(MobileNetV2_Encoder, self).__init__()
@@ -227,8 +265,16 @@ class MobileNetV2_Encoder(nn.Module):
                 in_channals = out_channals
         self.features = nn.Sequential(*layers)
         
+        self.load_state_dict(th.load(cfg.mobv2_pretrained_model_path), strict= False)
+        
+        self.features = nn.ModuleList([*self.features])
+        self.Encoded_Tensors = []
+        
     def forward(self, x):
-        x = self.features(x)
+        self.Encoded_Tensors.clear()
+        for layer in self.features:
+            x = layer(x)
+            self.Encoded_Tensors.append(x)
         return x
         
 class MobileNetV2_Decoder(nn.Module):
@@ -238,6 +284,12 @@ class MobileNetV2_Decoder(nn.Module):
 if __name__ == '__main__':
     # print(Decoder_Train_Net())
     # mobv2 = model.mobilenet_v2(pretrained= True)
-    mobv2 = MobileNetV2_Encoder()
-    mobv2.load_state_dict(th.load(r'BoneNetwork_models\mobilenetv2-c5e733a8.pth'), strict= False)
-    print(mobv2)
+    # mobv2 = MobileNetV2_Encoder()
+    # mobv2.load_state_dict(th.load(r'BoneNetwork_models\mobilenetv2-c5e733a8.pth'), strict= False)
+    # print(mobv2)
+    
+    test = th.rand((2, 3, 224, 224))
+    test = get_ConvNormActivation(3, 32, kernel_size= 1, stride= 1, padding= 0)(test)
+    print(test.size())
+    test = get_TransposedConvNormActivation(32, 3, kernel_size= 1, padding= 0, stride= 1)(test)
+    print(test.size())

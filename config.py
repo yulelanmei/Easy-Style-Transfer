@@ -28,6 +28,8 @@ style_config = [
 #     'epochs': 100
 # }
 
+mobv2_pretrained_model_path = r'BoneNetwork_models\mobilenetv2-c5e733a8.pth'
+
 mobv2_encoder_cfg = (
     # t, c, n, s
     (1,  16, 1, 1),
