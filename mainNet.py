@@ -2,6 +2,7 @@ import torch as th
 import torch.nn as nn 
 import torchvision.models as model
 import networks as net
+import networks_ori as styleblock
 import config as cfg
 
 # ---------------   VGG19   ----------------
@@ -180,22 +181,30 @@ def get_TransposedConvNormActivation(in_channals, out_channals, kernel_size= 3,
                                             groups= groups, bias= bias),
                          nn.BatchNorm2d(out_channals),
                          nn.ReLU6(inplace= True))
+     
+def get_CNA_Block(in_channals, out_channals, kernel_size= 3, 
+                  stride= 1, padding= 1, groups= 1, bias= True, Transposed= False):
+    if Transposed:
+        return get_TransposedConvNormActivation(in_channals, out_channals, kernel_size, 
+                                                stride, padding, groups, bias)
+    return get_ConvNormActivation(in_channals, out_channals, kernel_size, 
+                                  stride, padding, groups, bias)
 
 class InverteResidual(nn.Module):
-    def __init__(self, in_channals, out_channals, stride, expand_ratio):
+    def __init__(self, in_channals, out_channals, stride, expand_ratio, Transposed= False):
         super(InverteResidual, self).__init__()
         assert stride in (1, 2)
         
         # 计算隐藏维度时舍入整数
-        hidden_dim = round(in_channals * expand_ratio)
+        hidden_dim = round((out_channals if Transposed else in_channals) * expand_ratio)
         # 是否残差连接
         self.identity = stride == 1 and in_channals == out_channals
 
         if expand_ratio == 1:
             self.conv = nn.Sequential(
                 # dw
-                *get_ConvNormActivation(hidden_dim, hidden_dim, 3, stride, 
-                                        1, groups= hidden_dim, bias= False),
+                *get_CNA_Block(hidden_dim, hidden_dim, 3, stride, 1,
+                               groups= hidden_dim, bias= False, Transposed= Transposed),
                 # pw-linear
                 nn.Conv2d(hidden_dim, out_channals, 1, 1, 0, bias=False),
                 nn.BatchNorm2d(out_channals),
@@ -203,48 +212,16 @@ class InverteResidual(nn.Module):
         else:
             self.conv = nn.Sequential(
                 # pw
-                *get_ConvNormActivation(in_channals, hidden_dim, 1, 1, 0, bias= False),
+                *get_CNA_Block(in_channals, hidden_dim, 1, 1, 0,
+                               bias= False, Transposed= Transposed),
                 # dw
-                *get_ConvNormActivation(hidden_dim, hidden_dim, 3, stride, 1, groups= hidden_dim, bias= False),
+                *get_CNA_Block(hidden_dim, hidden_dim, 3, stride, 1,
+                               groups= hidden_dim, bias= False, Transposed= Transposed),
                 # pw-linear
                 nn.Conv2d(hidden_dim, out_channals, 1, 1, 0, bias=False),
                 nn.BatchNorm2d(out_channals),
             )
 
-    def forward(self, x):
-        if self.identity:
-            return x + self.conv(x)
-        else:
-            return self.conv(x)
-        
-class De_InverteResidual(nn.Module):
-    def __init__(self, in_channals, out_channals, stride, expand_ratio):
-        super(De_InverteResidual, self).__init__()
-        assert stride in (1, 2)
-        
-        hidden_dim = round(out_channals * expand_ratio)
-        self.identity = stride == 1 and in_channals == out_channals
-        
-        if expand_ratio == 1:
-            self.conv = nn.Sequential(
-                # dw
-                *get_TransposedConvNormActivation(hidden_dim, hidden_dim, 3, stride, 
-                                        1, groups= hidden_dim, bias= False),
-                # pw-linear
-                nn.Conv2d(hidden_dim, out_channals, 1, 1, 0, bias=False),
-                nn.BatchNorm2d(out_channals),
-            )
-        else:
-            self.conv = nn.Sequential(
-                # pw
-                *get_TransposedConvNormActivation(in_channals, hidden_dim, 1, 1, 0, bias= False),
-                # dw
-                *get_TransposedConvNormActivation(hidden_dim, hidden_dim, 3, stride, 1, groups= hidden_dim, bias= False),
-                # pw-linear
-                nn.Conv2d(hidden_dim, out_channals, 1, 1, 0, bias=False),
-                nn.BatchNorm2d(out_channals),
-            )
-        
     def forward(self, x):
         if self.identity:
             return x + self.conv(x)
@@ -255,7 +232,7 @@ class MobileNetV2_Encoder(nn.Module):
     def __init__(self):
         super(MobileNetV2_Encoder, self).__init__()
         
-        layers = [get_ConvNormActivation(3, 32, kernel_size= 3, stride= 2, bias= False)]
+        layers = [get_CNA_Block(3, 32, kernel_size= 3, stride= 2, bias= False)]
         block = InverteResidual
         in_channals = 32
         for t, c, n, s in cfg.mobv2_encoder_cfg:
@@ -270,16 +247,40 @@ class MobileNetV2_Encoder(nn.Module):
         self.features = nn.ModuleList([*self.features])
         self.Encoded_Tensors = []
         
+        self.ex_layer = cfg.mobv2_encoder_extract_layer
+        
     def forward(self, x):
         self.Encoded_Tensors.clear()
-        for layer in self.features:
+        for i, layer in enumerate(self.features):
             x = layer(x)
-            self.Encoded_Tensors.append(x)
+            if i in self.ex_layer:
+                self.Encoded_Tensors.append(x)
         return x
         
 class MobileNetV2_Decoder(nn.Module):
     def __init__(self):
         super(MobileNetV2_Decoder, self).__init__()
+        
+        layers = []
+        block = InverteResidual
+        out_channals = 32
+        for t, c, n, s in reversed(cfg.mobv2_encoder_cfg):
+            in_channals = c
+            for i in range(n):
+                layers.append(block(in_channals, out_channals, s if i == 0 else 1, t))
+                out_channals = in_channals
+        layers.append(get_CNA_Block(32, 3, kernel_size= 3, stride= 2, bias= False, Transposed= True))
+        self.features = nn.ModuleList(layers)
+        
+        self.style_layers = nn.ModuleList([styleblock.get_style_block(block_name) for block_name in cfg.mobv2_style_block_cfg])
+        # self.in_layer = map(lambda x: )
+        
+    def forward(self, x, en_tensors):
+        
+        
+        
+        
+        return x
 
 if __name__ == '__main__':
     # print(Decoder_Train_Net())
@@ -289,7 +290,13 @@ if __name__ == '__main__':
     # print(mobv2)
     
     test = th.rand((2, 3, 224, 224))
-    test = get_ConvNormActivation(3, 32, kernel_size= 1, stride= 1, padding= 0)(test)
+    
+    # test = get_ConvNormActivation(3, 3, kernel_size= 1, stride= 1, padding= 0, groups= 3)(test)
+    # print(test.size())
+    # test = get_TransposedConvNormActivation(3, 3, kernel_size= 1, padding= 0, stride= 1, groups= 3)(test)
+    # print(test.size())
+    
+    test = InverteResidual(3, 16, 1, 6)(test)
     print(test.size())
-    test = get_TransposedConvNormActivation(32, 3, kernel_size= 1, padding= 0, stride= 1)(test)
+    test = InverteResidual(16, 3, 1, 6, True)(test)
     print(test.size())

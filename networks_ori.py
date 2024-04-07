@@ -50,6 +50,10 @@ class SA_Block(nn.Module):
         normalized_tensor = (tensor - tensor_mean.expand(size)) / tensor_std.expand(size)
         return normalized_tensor
     
+def get_style_block(block_name: str):
+    if block_name == 'adain': return AdaIn()
+    if block_name == 'sablk': return SA_Block()
+    
 if __name__ == '__main__':
     
     ada = AdaIn().to('cuda')
