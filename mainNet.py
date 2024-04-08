@@ -242,20 +242,19 @@ class MobileNetV2_Encoder(nn.Module):
                 in_channals = out_channals
         self.features = nn.Sequential(*layers)
         
-        self.load_state_dict(th.load(cfg.mobv2_pretrained_model_path), strict= False)
-        
+        self.load_state_dict(th.load(cfg.mobv2_pretrained_model_path), strict= False)     
         self.features = nn.ModuleList([*self.features])
-        self.Encoded_Tensors = []
-        
         self.ex_layer = cfg.mobv2_encoder_extract_layer
         
-    def forward(self, x):
-        self.Encoded_Tensors.clear()
+    def forward(self, c, s):
+        en_s_tensors = []
         for i, layer in enumerate(self.features):
-            x = layer(x)
+            c = layer(c)
+            s = layer(s)
             if i in self.ex_layer:
-                self.Encoded_Tensors.append(x)
-        return x
+                en_s_tensors.append(s)
+        en_s_tensors.append(s)
+        return c, en_s_tensors
         
 class MobileNetV2_Decoder(nn.Module):
     def __init__(self):
@@ -273,14 +272,29 @@ class MobileNetV2_Decoder(nn.Module):
         self.features = nn.ModuleList(layers)
         
         self.style_layers = nn.ModuleList([styleblock.get_style_block(block_name) for block_name in cfg.mobv2_style_block_cfg])
-        # self.in_layer = map(lambda x: )
+        self.in_layer = cfg.mobv2_decoder_insert_layer
         
-    def forward(self, x, en_tensors):
+    def forward(self, c, en_s_tensors):
+        style_layer = iter(self.style_layers)
+        style_tensors = iter(en_s_tensors)
+        for i, layer in enumerate(self.features):
+            if i in self.in_layer:
+                c = next(style_layer)(c, next(style_tensors))
+            c = layer(c) 
+        return c
+    
+class EstNet(nn.Module):
+    def __init__(self):
+        super(EstNet, self).__init__()
         
+        self.Encoder = MobileNetV2_Encoder()
+        self.Decoder = MobileNetV2_Decoder()
         
-        
-        
+    def forward(self, c, s):
+        c, en_s_tensors = self.Encoder(c, s)
+        x = self.Decoder(c, en_s_tensors)
         return x
+        
 
 if __name__ == '__main__':
     # print(Decoder_Train_Net())
@@ -289,14 +303,20 @@ if __name__ == '__main__':
     # mobv2.load_state_dict(th.load(r'BoneNetwork_models\mobilenetv2-c5e733a8.pth'), strict= False)
     # print(mobv2)
     
-    test = th.rand((2, 3, 224, 224))
+    # test = th.rand((2, 3, 224, 224))
     
     # test = get_ConvNormActivation(3, 3, kernel_size= 1, stride= 1, padding= 0, groups= 3)(test)
     # print(test.size())
     # test = get_TransposedConvNormActivation(3, 3, kernel_size= 1, padding= 0, stride= 1, groups= 3)(test)
     # print(test.size())
     
-    test = InverteResidual(3, 16, 1, 6)(test)
-    print(test.size())
-    test = InverteResidual(16, 3, 1, 6, True)(test)
-    print(test.size())
+    # test = InverteResidual(3, 16, 1, 6)(test)
+    # print(test.size())
+    # test = InverteResidual(16, 3, 1, 6, True)(test)
+    # print(test.size())
+    
+    c = th.rand((2, 3, 224, 224))
+    s = th.rand((2, 3, 224, 224))
+    
+    x = EstNet()(c, s)
+    print(x.size())

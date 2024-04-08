@@ -56,11 +56,13 @@ def get_style_block(block_name: str):
     
 if __name__ == '__main__':
     
-    ada = AdaIn().to('cuda')
-    sa = SA_Block(3).to('cuda')
+    device = 'cuda'
     
-    c = th.rand((1, 3, 256, 256)).to('cuda')
-    s = th.rand((1, 3, 256, 256)).to('cuda')
+    ada = AdaIn().to(device)
+    sa = SA_Block(3).to(device)
+    
+    c = th.rand((1, 3, 256, 256)).to(device)
+    s = th.rand((1, 3, 256, 256)).to(device)
     
     result1 = ada(c, s)
     # result2 = sa(c, s)
