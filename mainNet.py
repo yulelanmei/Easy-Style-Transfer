@@ -196,7 +196,7 @@ class InverteResidual(nn.Module):
         assert stride in (1, 2)
         
         # 计算隐藏维度时舍入整数
-        hidden_dim = round((out_channals if Transposed else in_channals) * expand_ratio)
+        hidden_dim = round((out_channals if Transposed and expand_ratio != 1 else in_channals) * expand_ratio)
         # 是否残差连接
         self.identity = stride == 1 and in_channals == out_channals
 
@@ -253,22 +253,25 @@ class MobileNetV2_Encoder(nn.Module):
             s = layer(s)
             if i in self.ex_layer:
                 en_s_tensors.append(s)
-        en_s_tensors.append(s)
+        # en_s_tensors.append(s)
+        en_s_tensors.reverse()
         return c, en_s_tensors
         
 class MobileNetV2_Decoder(nn.Module):
     def __init__(self):
         super(MobileNetV2_Decoder, self).__init__()
         
-        layers = []
-        block = InverteResidual
-        out_channals = 32
-        for t, c, n, s in reversed(cfg.mobv2_encoder_cfg):
+        layers = [get_CNA_Block(32, 3, kernel_size= 3, stride= 2, bias= False, Transposed= True)]
+        block = InverteResidual    
+        out_channals = 32   
+        for t, c, n, s in cfg.mobv2_encoder_cfg:
             in_channals = c
             for i in range(n):
-                layers.append(block(in_channals, out_channals, s if i == 0 else 1, t))
+                layers.append(block(in_channals, out_channals, s if i == 0 else 1, t, Transposed= True))
                 out_channals = in_channals
-        layers.append(get_CNA_Block(32, 3, kernel_size= 3, stride= 2, bias= False, Transposed= True))
+        layers.reverse()
+        # for l in layers:
+        #     print(l)
         self.features = nn.ModuleList(layers)
         
         self.style_layers = nn.ModuleList([styleblock.get_style_block(block_name) for block_name in cfg.mobv2_style_block_cfg])
@@ -279,7 +282,12 @@ class MobileNetV2_Decoder(nn.Module):
         style_tensors = iter(en_s_tensors)
         for i, layer in enumerate(self.features):
             if i in self.in_layer:
+                # sl = next(style_layer)
+                # st = next(style_tensors)
+                # print(c.size(), st.size())
+                # c = sl(c, st)
                 c = next(style_layer)(c, next(style_tensors))
+            # print(c.size())
             c = layer(c) 
         return c
     
@@ -315,8 +323,8 @@ if __name__ == '__main__':
     # test = InverteResidual(16, 3, 1, 6, True)(test)
     # print(test.size())
     
-    c = th.rand((2, 3, 224, 224))
-    s = th.rand((2, 3, 224, 224))
+    c = th.rand((2, 3, 256, 256))
+    s = th.rand((2, 3, 256, 256))
     
     x = EstNet()(c, s)
     print(x.size())
