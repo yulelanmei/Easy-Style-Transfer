@@ -4,6 +4,7 @@ import torchvision.models as model
 import networks as net
 import networks_ori as styleblock
 import config as cfg
+from typing import Optional
 
 # ---------------   VGG19   ----------------
 def get_decode_block(in_channels, out_channels, num_of_layer, if_scaled = True): 
@@ -229,7 +230,7 @@ class InverteResidual(nn.Module):
             return self.conv(x)
         
 class MobileNetV2_Encoder(nn.Module):
-    def __init__(self):
+    def __init__(self, preTrained= False):
         super(MobileNetV2_Encoder, self).__init__()
         
         layers = [get_CNA_Block(3, 32, kernel_size= 3, stride= 2, bias= False)]
@@ -242,7 +243,8 @@ class MobileNetV2_Encoder(nn.Module):
                 in_channals = out_channals
         self.features = nn.Sequential(*layers)
         
-        self.load_state_dict(th.load(cfg.mobv2_pretrained_model_path), strict= False)     
+        if preTrained:
+            self.load_state_dict(th.load(cfg.mobv2_pretrained_model_path), strict= False)     
         self.features = nn.ModuleList([*self.features])
         self.ex_layer = cfg.mobv2_encoder_extract_layer
         
@@ -292,11 +294,16 @@ class MobileNetV2_Decoder(nn.Module):
         return c
     
 class EstNet(nn.Module):
-    def __init__(self):
+    def __init__(self, load_preTrained_model: Optional[str]):
         super(EstNet, self).__init__()
         
-        self.Encoder = MobileNetV2_Encoder()
-        self.Decoder = MobileNetV2_Decoder()
+        if load_preTrained_model:
+            self.Encoder = MobileNetV2_Encoder()
+            self.Decoder = MobileNetV2_Decoder()
+            self.load_state_dict(load_preTrained_model)
+        else:
+            self.Encoder = MobileNetV2_Encoder(preTrained= True)
+            self.Decoder = MobileNetV2_Decoder()
         
     def forward(self, c, s):
         c, en_s_tensors = self.Encoder(c, s)
@@ -323,8 +330,8 @@ if __name__ == '__main__':
     # test = InverteResidual(16, 3, 1, 6, True)(test)
     # print(test.size())
     
-    c = th.rand((2, 3, 256, 256))
-    s = th.rand((2, 3, 256, 256))
+    c = th.rand((2, 3, 224, 224))
+    s = th.rand((2, 3, 224, 224))
     
     x = EstNet()(c, s)
     print(x.size())
