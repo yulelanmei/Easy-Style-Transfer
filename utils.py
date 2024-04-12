@@ -31,6 +31,10 @@ def img_display(img, name: str):
     plt.axis('on')
     plt.title(name)
     plt.show()
+    
+def train_process_visualable(loss_log: list):
+    plt.figure('train loss')
+    
 
 def get_logPath(log_dir: str): 
     num_of_exp = 0 

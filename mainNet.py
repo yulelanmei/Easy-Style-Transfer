@@ -294,7 +294,7 @@ class MobileNetV2_Decoder(nn.Module):
         return c
     
 class EstNet(nn.Module):
-    def __init__(self, load_preTrained_model: Optional[str]):
+    def __init__(self, load_preTrained_model: Optional[str] = None):
         super(EstNet, self).__init__()
         
         if load_preTrained_model:

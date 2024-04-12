@@ -41,8 +41,17 @@ mobv2_encoder_cfg = (
     # (6, 320, 1, 1),
 )
 
-mobv2_encoder_extract_layer = (3, 6, 10, 16)
-mobv2_decoder_insert_layer = (0, 7, 11, 14)
+mobv2_encoder_extract_layer = (3, 
+                               6, 
+                               10, 
+                               16
+)
+
+mobv2_decoder_insert_layer = (0, 
+                              7, 
+                              11, 
+                              14
+)
 
 mobv2_style_block_cfg = (
     'adain',

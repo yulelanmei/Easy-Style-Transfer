@@ -1,6 +1,6 @@
 import os
 import random
-import torch as th
+import torch
 import torchvision as tv
 import torch.utils.data as Data
 from PIL import Image
@@ -13,7 +13,8 @@ def get_image_transformer(resize= 256, normalized= False, mean= None, std= None)
     if normalized:
         if (mean is not None) and (std is not None):
             compose_list.append(tv.transforms.Normalize(mean= mean, 
-                                                        std=  std))                         
+                                                        std=  std, 
+                                                        inplace= True))                         
     return tv.transforms.Compose(compose_list)
 
 def get_image_list(dataset_path: str, datanum= None, if_random = False): 
@@ -41,7 +42,7 @@ class ImageLoder(Data.Dataset):
     def __init__(self, dataset_path: str, datanum = 'all', 
                  if_random = False, preload= False, 
                  resize = 256, normalized = False, 
-                 std = None, mean = None):
+                 std = None, mean = None, double_output= False):
         datadir = get_image_list(dataset_path, datanum, if_random)
         if preload: 
             transformer = get_image_transformer(resize, normalized, std, mean)
@@ -52,15 +53,43 @@ class ImageLoder(Data.Dataset):
             self.datalist = datadir
             self.transformer = get_image_transformer(resize, normalized, std, mean)
         self.preload = preload
+        self.double_output = double_output
         self.length = len(datadir)
 
     def __getitem__(self, index):
-        if self.preload: 
-            return self.data[index]
-        else: 
-            return image_transform(self.datalist[index], self.transformer)
+        if self.double_output:
+            index_2 = random.randint(0, self.length - 1)
+            if self.preload:
+                return self.data[index], self.data[index_2]
+            else:
+                return image_transform(self.datalist[index], self.transformer), \
+                    image_transform(self.datalist[index_2], self.transformer)
+        else:
+            if self.preload: 
+                return self.data[index]
+            else: 
+                return image_transform(self.datalist[index], self.transformer)
 
     def __len__(self): 
         return self.length                                
 
+if __name__ == '__main__':
     
+    coco2014 = ImageLoder(r"./data\train2014", 
+                            datanum= 'all', 
+                            if_random= False,
+                            preload= False, 
+                            resize= 224, 
+                            normalized= True, 
+                            std= 0.5, mean= 0.5, 
+                            double_output= True)
+    
+    dataloader = Data.DataLoader(dataset= coco2014, 
+                                batch_size= 4, 
+                                shuffle= True, 
+                                num_workers= 4,
+                                pin_memory= True, 
+                                prefetch_factor= 2,)
+    
+    for c, s in dataloader:
+        pass
