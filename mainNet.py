@@ -300,7 +300,7 @@ class EstNet(nn.Module):
         if load_preTrained_model:
             self.Encoder = MobileNetV2_Encoder()
             self.Decoder = MobileNetV2_Decoder()
-            self.load_state_dict(load_preTrained_model)
+            self.load_state_dict(th.load(load_preTrained_model))
         else:
             self.Encoder = MobileNetV2_Encoder(preTrained= True)
             self.Decoder = MobileNetV2_Decoder()
@@ -335,3 +335,5 @@ if __name__ == '__main__':
     
     x = EstNet()(c, s)
     print(x.size())
+    
+    print(x)

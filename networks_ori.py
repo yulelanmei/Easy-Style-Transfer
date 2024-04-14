@@ -51,8 +51,8 @@ class SA_Block(nn.Module):
         return normalized_tensor
     
 def get_style_block(block_name: str):
-    if block_name == 'adain': return AdaIn()
-    if block_name == 'sablk': return SA_Block()
+    if block_name == 'AdaIn': return AdaIn()
+    if block_name == 'SA': return SA_Block(channels= 160)
     
 if __name__ == '__main__':
     
